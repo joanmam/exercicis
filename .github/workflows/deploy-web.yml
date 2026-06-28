@@ -13,10 +13,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Instal·la dependències
-        run: npm install
+      - name: Instal·la dependències (només web + shared)
+        run: npm install --include-workspace-root -w @exercicis/web -w @exercicis/shared
 
       - name: Build del web
         run: npm run web:build
