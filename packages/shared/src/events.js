@@ -4,6 +4,18 @@
 
 export const CATEGORIES = ["Fet", "No fet"];
 
+// Grups d'exercicis. Els registres antics sense grup es consideren "Cara".
+export const GRUPS = ["Cara", "Vista"];
+
+export function grupDe(event) {
+  return event.grup || "Cara";
+}
+
+// Retorna només els events d'un grup concret.
+export function filtraPerGrup(events, grup) {
+  return events.filter((e) => grupDe(e) === grup);
+}
+
 // Períodes disponibles per filtrar els events.
 // "7dies" | "15dies" | "setmana" | "mes" | "tot"
 export const PERIODES = [

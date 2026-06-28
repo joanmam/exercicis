@@ -9,12 +9,21 @@ import {
 } from "react-native";
 import { db, isConfigured } from "./src/firebaseConfig";
 import { afegirEvent, llegirEvents, esborraEvent } from "@exercicis/shared/db";
-import { agregaPerCategoria, filtraPerPeriode, PERIODES } from "@exercicis/shared/events";
+import { agregaPerCategoria, filtraPerPeriode, filtraPerGrup, PERIODES, GRUPS } from "@exercicis/shared/events";
+
+// Colors de fons i accent per a cada grup.
+const TEMA = {
+  Cara: { fons: "#f4eefc", accent: "#8250df" },
+  Vista: { fons: "#fff3e6", accent: "#d4731c" },
+};
 
 export default function App() {
+  const [grup, setGrup] = useState("Cara");
   const [tab, setTab] = useState("registre");
   const [events, setEvents] = useState([]);
   const [missatge, setMissatge] = useState("");
+
+  const tema = TEMA[grup];
 
   async function carrega() {
     if (!isConfigured) return;
@@ -30,7 +39,7 @@ export default function App() {
       setMissatge("Configura Firebase (.env) per guardar els events.");
       return;
     }
-    await afegirEvent(db, value);
+    await afegirEvent(db, value, grup);
     setMissatge(`Registrat: ${value}`);
     carrega();
   }
@@ -41,9 +50,33 @@ export default function App() {
     carrega();
   }
 
+  const eventsGrup = filtraPerGrup(events, grup);
+
   return (
-    <View style={st.container}>
+    <View style={[st.container, { backgroundColor: tema.fons }]}>
       <Text style={st.h1}>Exercicis Primer</Text>
+
+      <View style={st.grups}>
+        {GRUPS.map((g) => {
+          const actiu = grup === g;
+          return (
+            <Pressable
+              key={g}
+              style={[
+                st.grup,
+                { borderColor: TEMA[g].accent },
+                actiu && { backgroundColor: TEMA[g].accent },
+              ]}
+              onPress={() => {
+                setGrup(g);
+                setMissatge("");
+              }}
+            >
+              <Text style={[st.grupText, { color: actiu ? "#fff" : TEMA[g].accent }]}>{g}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {!isConfigured && (
         <Text style={st.avis}>
@@ -53,13 +86,13 @@ export default function App() {
 
       <View style={st.nav}>
         <Pressable
-          style={tab === "registre" ? st.tabOn : st.tab}
+          style={[st.tab, tab === "registre" && { backgroundColor: tema.accent, borderColor: tema.accent }]}
           onPress={() => setTab("registre")}
         >
           <Text style={tab === "registre" ? st.tabOnText : st.tabText}>Registre</Text>
         </Pressable>
         <Pressable
-          style={tab === "historial" ? st.tabOn : st.tab}
+          style={[st.tab, tab === "historial" && { backgroundColor: tema.accent, borderColor: tema.accent }]}
           onPress={() => {
             setTab("historial");
             carrega();
@@ -82,7 +115,7 @@ export default function App() {
           {!!missatge && <Text style={st.msg}>{missatge}</Text>}
         </View>
       ) : (
-        <Historial events={events} onEsborra={esborra} />
+        <Historial events={eventsGrup} onEsborra={esborra} accent={tema.accent} />
       )}
 
       <StatusBar style="auto" />
@@ -98,12 +131,12 @@ function formataData(iso) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function Historial({ events, onEsborra }) {
+function Historial({ events, onEsborra, accent = "#0969da" }) {
   const [periode, setPeriode] = useState("7dies");
   const [visibles, setVisibles] = useState(VISIBLES_INICIALS);
 
   if (events.length === 0)
-    return <Text style={st.center}>Encara no hi ha events.</Text>;
+    return <Text style={st.center}>Encara no hi ha registres en aquest grup.</Text>;
 
   const filtrats = filtraPerPeriode(events, periode);
   const { perCategoria, total } = agregaPerCategoria(filtrats);
@@ -116,7 +149,7 @@ function Historial({ events, onEsborra }) {
         {PERIODES.map((p) => (
           <Pressable
             key={p.clau}
-            style={periode === p.clau ? st.tabOn : st.tab}
+            style={[st.tab, periode === p.clau && { backgroundColor: accent, borderColor: accent }]}
             onPress={() => {
               setPeriode(p.clau);
               setVisibles(VISIBLES_INICIALS);
@@ -130,7 +163,7 @@ function Historial({ events, onEsborra }) {
       <View style={st.resum}>
         <Targeta etiqueta="Fet" valor={perCategoria["Fet"]} pct={pct(perCategoria["Fet"])} color="#1a7f37" />
         <Targeta etiqueta="No fet" valor={perCategoria["No fet"]} pct={pct(perCategoria["No fet"])} color="#cf222e" />
-        <Targeta etiqueta="Total" valor={total} color="#0969da" />
+        <Targeta etiqueta="Total" valor={total} color={accent} />
       </View>
 
       {filtrats.length === 0 ? (
@@ -156,8 +189,8 @@ function Historial({ events, onEsborra }) {
           })}
 
           {visibles < filtrats.length && (
-            <Pressable style={st.veureMes} onPress={() => setVisibles((v) => v + VISIBLES_INICIALS)}>
-              <Text style={st.veureMesText}>Veure més registres</Text>
+            <Pressable style={[st.veureMes, { borderColor: accent }]} onPress={() => setVisibles((v) => v + VISIBLES_INICIALS)}>
+              <Text style={[st.veureMesText, { color: accent }]}>Veure més registres</Text>
             </Pressable>
           )}
         </>
@@ -179,6 +212,9 @@ function Targeta({ etiqueta, valor, pct, color }) {
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 20 },
   h1: { fontSize: 24, fontWeight: "bold", textAlign: "center" },
+  grups: { flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 12 },
+  grup: { paddingVertical: 10, paddingHorizontal: 28, borderWidth: 2, borderRadius: 999, backgroundColor: "#fff" },
+  grupText: { fontSize: 16, fontWeight: "600" },
   avis: { backgroundColor: "#fff8c5", padding: 12, borderRadius: 8, fontSize: 13, marginTop: 12 },
   nav: { flexDirection: "row", gap: 8, justifyContent: "center", marginVertical: 16 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: "#ccc", borderRadius: 8 },

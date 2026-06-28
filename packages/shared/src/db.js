@@ -12,10 +12,12 @@ import {
 
 const COL = "events";
 
-// Afegeix un event nou amb el valor del botó ("Fet" o "No fet") i la data actual.
-export async function afegirEvent(db, value) {
+// Afegeix un event nou amb el valor del botó ("Fet" o "No fet"),
+// el grup ("Cara" o "Vista") i la data actual.
+export async function afegirEvent(db, value, grup = "Cara") {
   return addDoc(collection(db, COL), {
     value,
+    grup,
     date: new Date().toISOString(),
     createdAt: serverTimestamp(),
   });

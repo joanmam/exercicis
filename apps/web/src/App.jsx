@@ -1,13 +1,27 @@
 import { useEffect, useState } from "react";
 import { db, isConfigured } from "./firebaseConfig";
 import { afegirEvent, llegirEvents, esborraEvent } from "@exercicis/shared/db";
-import { agregaPerCategoria, filtraPerPeriode, PERIODES } from "@exercicis/shared/events";
+import { agregaPerCategoria, filtraPerPeriode, filtraPerGrup, PERIODES, GRUPS } from "@exercicis/shared/events";
+
+// Colors de fons i accent per a cada grup.
+const TEMA = {
+  Cara: { fons: "#f4eefc", accent: "#8250df" },
+  Vista: { fons: "#fff3e6", accent: "#d4731c" },
+};
 
 export default function App() {
+  const [grup, setGrup] = useState("Cara");
   const [tab, setTab] = useState("registre");
   const [events, setEvents] = useState([]);
   const [carregant, setCarregant] = useState(false);
   const [missatge, setMissatge] = useState("");
+
+  const tema = TEMA[grup];
+
+  useEffect(() => {
+    document.body.style.background = tema.fons;
+    document.body.style.transition = "background 0.2s";
+  }, [tema.fons]);
 
   async function carrega() {
     if (!isConfigured) return;
@@ -28,7 +42,7 @@ export default function App() {
       setMissatge("Configura Firebase (.env) per guardar els events.");
       return;
     }
-    await afegirEvent(db, value);
+    await afegirEvent(db, value, grup);
     setMissatge(`Registrat: ${value} ✓`);
     carrega();
   }
@@ -39,9 +53,30 @@ export default function App() {
     carrega();
   }
 
+  const eventsGrup = filtraPerGrup(events, grup);
+
   return (
-    <main style={s.main}>
+    <main style={{ ...s.main, background: tema.fons }}>
       <h1 style={s.h1}>Exercicis Primer</h1>
+
+      <nav style={s.grups}>
+        {GRUPS.map((g) => (
+          <button
+            key={g}
+            style={
+              grup === g
+                ? { ...s.grup, background: TEMA[g].accent, borderColor: TEMA[g].accent, color: "#fff" }
+                : { ...s.grup, color: TEMA[g].accent, borderColor: TEMA[g].accent }
+            }
+            onClick={() => {
+              setGrup(g);
+              setMissatge("");
+            }}
+          >
+            {g}
+          </button>
+        ))}
+      </nav>
 
       {!isConfigured && (
         <p style={s.avis}>
@@ -52,13 +87,13 @@ export default function App() {
 
       <nav style={s.nav}>
         <button
-          style={tab === "registre" ? s.tabOn : s.tab}
+          style={tab === "registre" ? { ...s.tabOn, background: tema.accent, borderColor: tema.accent } : s.tab}
           onClick={() => setTab("registre")}
         >
           Registre
         </button>
         <button
-          style={tab === "historial" ? s.tabOn : s.tab}
+          style={tab === "historial" ? { ...s.tabOn, background: tema.accent, borderColor: tema.accent } : s.tab}
           onClick={() => {
             setTab("historial");
             carrega();
@@ -81,7 +116,7 @@ export default function App() {
           {missatge && <p style={s.msg}>{missatge}</p>}
         </section>
       ) : (
-        <Historial events={events} carregant={carregant} onEsborra={esborra} />
+        <Historial events={eventsGrup} carregant={carregant} onEsborra={esborra} accent={tema.accent} />
       )}
     </main>
   );
@@ -100,12 +135,12 @@ function formataData(iso) {
   });
 }
 
-function Historial({ events, carregant, onEsborra }) {
+function Historial({ events, carregant, onEsborra, accent = "#0969da" }) {
   const [periode, setPeriode] = useState("7dies");
   const [visibles, setVisibles] = useState(VISIBLES_INICIALS);
 
   if (carregant) return <p style={s.center}>Carregant…</p>;
-  if (events.length === 0) return <p style={s.center}>Encara no hi ha events.</p>;
+  if (events.length === 0) return <p style={s.center}>Encara no hi ha registres en aquest grup.</p>;
 
   const filtrats = filtraPerPeriode(events, periode);
   const { perCategoria, total } = agregaPerCategoria(filtrats);
@@ -119,7 +154,7 @@ function Historial({ events, carregant, onEsborra }) {
         {PERIODES.map((p) => (
           <button
             key={p.clau}
-            style={periode === p.clau ? s.tabOn : s.tab}
+            style={periode === p.clau ? { ...s.tabOn, background: accent, borderColor: accent } : s.tab}
             onClick={() => {
               setPeriode(p.clau);
               setVisibles(VISIBLES_INICIALS);
@@ -133,7 +168,7 @@ function Historial({ events, carregant, onEsborra }) {
       <div style={s.resum}>
         <Targeta etiqueta="Fet" valor={perCategoria["Fet"]} pct={pct(perCategoria["Fet"])} color="#1a7f37" />
         <Targeta etiqueta="No fet" valor={perCategoria["No fet"]} pct={pct(perCategoria["No fet"])} color="#cf222e" />
-        <Targeta etiqueta="Total" valor={total} color="#0969da" />
+        <Targeta etiqueta="Total" valor={total} color={accent} />
       </div>
 
       {filtrats.length === 0 ? (
@@ -175,7 +210,7 @@ function Historial({ events, carregant, onEsborra }) {
           {visibles < filtrats.length && (
             <div style={s.center}>
               <button
-                style={s.veureMes}
+                style={{ ...s.veureMes, color: accent, borderColor: accent }}
                 onClick={() => setVisibles((v) => v + VISIBLES_INICIALS)}
               >
                 Veure més registres
@@ -199,8 +234,10 @@ function Targeta({ etiqueta, valor, pct, color }) {
 }
 
 const s = {
-  main: { fontFamily: "system-ui, sans-serif", maxWidth: 520, margin: "0 auto", padding: 24 },
+  main: { fontFamily: "system-ui, sans-serif", maxWidth: 520, margin: "0 auto", padding: 24, minHeight: "100vh", boxSizing: "border-box" },
   h1: { textAlign: "center" },
+  grups: { display: "flex", gap: 8, justifyContent: "center", margin: "8px 0 4px" },
+  grup: { padding: "10px 28px", border: "2px solid", background: "#fff", borderRadius: 999, fontSize: 16, fontWeight: 600, cursor: "pointer" },
   avis: { background: "#fff8c5", padding: 12, borderRadius: 8, fontSize: 14 },
   nav: { display: "flex", gap: 8, justifyContent: "center", margin: "16px 0" },
   tab: { padding: "8px 16px", border: "1px solid #ccc", background: "#fff", borderRadius: 8, cursor: "pointer" },
