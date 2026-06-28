@@ -4,6 +4,42 @@
 
 export const CATEGORIES = ["Fet", "No fet"];
 
+// Períodes disponibles per filtrar els events.
+// "7dies" | "15dies" | "setmana" | "mes" | "tot"
+export const PERIODES = [
+  { clau: "7dies", etiqueta: "Últims 7 dies" },
+  { clau: "15dies", etiqueta: "Últims 15 dies" },
+  { clau: "setmana", etiqueta: "Aquesta setmana" },
+  { clau: "mes", etiqueta: "Aquest mes" },
+  { clau: "tot", etiqueta: "Tot" },
+];
+
+// Retorna només els events dins del període demanat.
+export function filtraPerPeriode(events, periode, ara = new Date()) {
+  if (periode === "tot") return events;
+
+  let desde;
+  if (periode === "7dies") {
+    desde = new Date(ara);
+    desde.setDate(ara.getDate() - 7);
+  } else if (periode === "15dies") {
+    desde = new Date(ara);
+    desde.setDate(ara.getDate() - 15);
+  } else if (periode === "setmana") {
+    // dilluns d'aquesta setmana a les 00:00
+    desde = new Date(ara);
+    const dayNr = (ara.getDay() + 6) % 7;
+    desde.setDate(ara.getDate() - dayNr);
+    desde.setHours(0, 0, 0, 0);
+  } else if (periode === "mes") {
+    desde = new Date(ara.getFullYear(), ara.getMonth(), 1);
+  } else {
+    return events;
+  }
+
+  return events.filter((e) => new Date(e.date) >= desde);
+}
+
 // Compta quants events hi ha de cada categoria i el total.
 export function agregaPerCategoria(events) {
   const perCategoria = {};

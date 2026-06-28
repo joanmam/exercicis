@@ -8,8 +8,8 @@ import {
   ScrollView,
 } from "react-native";
 import { db, isConfigured } from "./src/firebaseConfig";
-import { afegirEvent, llegirEvents } from "@exercicis/shared/db";
-import { agregaPerCategoria, agrupaPerTemps } from "@exercicis/shared/events";
+import { afegirEvent, llegirEvents, esborraEvent } from "@exercicis/shared/db";
+import { agregaPerCategoria, filtraPerPeriode, PERIODES } from "@exercicis/shared/events";
 
 export default function App() {
   const [tab, setTab] = useState("registre");
@@ -32,6 +32,12 @@ export default function App() {
     }
     await afegirEvent(db, value);
     setMissatge(`Registrat: ${value}`);
+    carrega();
+  }
+
+  async function esborra(id) {
+    if (!isConfigured) return;
+    await esborraEvent(db, id);
     carrega();
   }
 
@@ -76,7 +82,7 @@ export default function App() {
           {!!missatge && <Text style={st.msg}>{missatge}</Text>}
         </View>
       ) : (
-        <Historial events={events} />
+        <Historial events={events} onEsborra={esborra} />
       )}
 
       <StatusBar style="auto" />
@@ -84,57 +90,88 @@ export default function App() {
   );
 }
 
-function Historial({ events }) {
-  const [agrupacio, setAgrupacio] = useState("dia");
-  const { perCategoria, total } = agregaPerCategoria(events);
-  const grups = agrupaPerTemps(events, agrupacio);
+const VISIBLES_INICIALS = 5;
+
+function formataData(iso) {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function Historial({ events, onEsborra }) {
+  const [periode, setPeriode] = useState("7dies");
+  const [visibles, setVisibles] = useState(VISIBLES_INICIALS);
 
   if (events.length === 0)
     return <Text style={st.center}>Encara no hi ha events.</Text>;
 
+  const filtrats = filtraPerPeriode(events, periode);
+  const { perCategoria, total } = agregaPerCategoria(filtrats);
+  const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+  const mostrats = filtrats.slice(0, visibles);
+
   return (
     <ScrollView style={{ flex: 1 }}>
-      <View style={st.resum}>
-        <Targeta etiqueta="Fet" valor={perCategoria["Fet"]} color="#1a7f37" />
-        <Targeta etiqueta="No fet" valor={perCategoria["No fet"]} color="#cf222e" />
-        <Targeta etiqueta="Total" valor={total} color="#0969da" />
-      </View>
-
       <View style={st.selector}>
-        {["dia", "setmana", "mes"].map((g) => (
+        {PERIODES.map((p) => (
           <Pressable
-            key={g}
-            style={agrupacio === g ? st.tabOn : st.tab}
-            onPress={() => setAgrupacio(g)}
+            key={p.clau}
+            style={periode === p.clau ? st.tabOn : st.tab}
+            onPress={() => {
+              setPeriode(p.clau);
+              setVisibles(VISIBLES_INICIALS);
+            }}
           >
-            <Text style={agrupacio === g ? st.tabOnText : st.tabText}>{g}</Text>
+            <Text style={periode === p.clau ? st.tabOnText : st.tabText}>{p.etiqueta}</Text>
           </Pressable>
         ))}
       </View>
 
-      <View style={st.filaCap}>
-        <Text style={[st.cel, st.cap]}>Període</Text>
-        <Text style={[st.cel, st.cap]}>Fet</Text>
-        <Text style={[st.cel, st.cap]}>No fet</Text>
-        <Text style={[st.cel, st.cap]}>Total</Text>
+      <View style={st.resum}>
+        <Targeta etiqueta="Fet" valor={perCategoria["Fet"]} pct={pct(perCategoria["Fet"])} color="#1a7f37" />
+        <Targeta etiqueta="No fet" valor={perCategoria["No fet"]} pct={pct(perCategoria["No fet"])} color="#cf222e" />
+        <Targeta etiqueta="Total" valor={total} color="#0969da" />
       </View>
-      {grups.map((g) => (
-        <View key={g.periode} style={st.fila}>
-          <Text style={st.cel}>{g.periode}</Text>
-          <Text style={st.cel}>{g.Fet}</Text>
-          <Text style={st.cel}>{g["No fet"]}</Text>
-          <Text style={st.cel}>{g.total}</Text>
-        </View>
-      ))}
+
+      {filtrats.length === 0 ? (
+        <Text style={st.center}>Cap registre en aquest període.</Text>
+      ) : (
+        <>
+          <View style={st.filaCap}>
+            <Text style={[st.cel, st.cap]}>Data</Text>
+            <Text style={[st.cel, st.cap]}>Estat</Text>
+            <Text style={[st.celBoto, st.cap]}></Text>
+          </View>
+          {mostrats.map((e) => {
+            const ferFet = e.value === "Fet";
+            return (
+              <View key={e.id} style={[st.fila, ferFet ? st.filaFet : st.filaNoFet]}>
+                <Text style={st.cel}>{formataData(e.date)}</Text>
+                <Text style={[st.cel, ferFet ? st.txtFet : st.txtNoFet]}>{e.value}</Text>
+                <Pressable style={st.celBoto} onPress={() => onEsborra(e.id)}>
+                  <Text style={st.esborrar}>✕</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+
+          {visibles < filtrats.length && (
+            <Pressable style={st.veureMes} onPress={() => setVisibles((v) => v + VISIBLES_INICIALS)}>
+              <Text style={st.veureMesText}>Veure més registres</Text>
+            </Pressable>
+          )}
+        </>
+      )}
     </ScrollView>
   );
 }
 
-function Targeta({ etiqueta, valor, color }) {
+function Targeta({ etiqueta, valor, pct, color }) {
   return (
     <View style={st.targeta}>
       <Text style={[st.num, { color }]}>{valor}</Text>
       <Text style={st.etq}>{etiqueta}</Text>
+      {pct !== undefined && <Text style={st.pct}>{pct}%</Text>}
     </View>
   );
 }
@@ -159,9 +196,18 @@ const st = StyleSheet.create({
   targeta: { flex: 1, alignItems: "center", borderWidth: 1, borderColor: "#eee", borderRadius: 12, paddingVertical: 14 },
   num: { fontSize: 28, fontWeight: "bold" },
   etq: { fontSize: 13, color: "#666" },
-  selector: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  pct: { fontSize: 12, color: "#999", marginTop: 2 },
+  selector: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 12 },
   filaCap: { flexDirection: "row", borderBottomWidth: 2, borderColor: "#ddd", paddingVertical: 8 },
-  fila: { flexDirection: "row", borderBottomWidth: 1, borderColor: "#eee", paddingVertical: 8 },
+  fila: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderColor: "#eee", paddingVertical: 8, paddingHorizontal: 4, borderRadius: 6, marginBottom: 2 },
+  filaFet: { backgroundColor: "#d8f5dd" },
+  filaNoFet: { backgroundColor: "#ffdcdc" },
   cel: { flex: 1, fontSize: 13 },
+  celBoto: { width: 32, alignItems: "center" },
+  txtFet: { color: "#1a7f37", fontWeight: "600" },
+  txtNoFet: { color: "#cf222e", fontWeight: "600" },
+  esborrar: { color: "#cf222e", fontSize: 16 },
   cap: { fontWeight: "bold" },
+  veureMes: { marginTop: 16, alignSelf: "center", paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: "#0969da", borderRadius: 8 },
+  veureMesText: { color: "#0969da" },
 });

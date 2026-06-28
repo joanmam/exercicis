@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db, isConfigured } from "./firebaseConfig";
-import { afegirEvent, llegirEvents } from "@exercicis/shared/db";
-import { agregaPerCategoria, agrupaPerTemps } from "@exercicis/shared/events";
+import { afegirEvent, llegirEvents, esborraEvent } from "@exercicis/shared/db";
+import { agregaPerCategoria, filtraPerPeriode, PERIODES } from "@exercicis/shared/events";
 
 export default function App() {
   const [tab, setTab] = useState("registre");
@@ -30,6 +30,12 @@ export default function App() {
     }
     await afegirEvent(db, value);
     setMissatge(`Registrat: ${value} ✓`);
+    carrega();
+  }
+
+  async function esborra(id) {
+    if (!isConfigured) return;
+    await esborraEvent(db, id);
     carrega();
   }
 
@@ -75,70 +81,119 @@ export default function App() {
           {missatge && <p style={s.msg}>{missatge}</p>}
         </section>
       ) : (
-        <Historial events={events} carregant={carregant} />
+        <Historial events={events} carregant={carregant} onEsborra={esborra} />
       )}
     </main>
   );
 }
 
-function Historial({ events, carregant }) {
-  const [agrupacio, setAgrupacio] = useState("dia");
-  const { perCategoria, total } = agregaPerCategoria(events);
-  const grups = agrupaPerTemps(events, agrupacio);
+const VISIBLES_INICIALS = 5;
+
+function formataData(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString("ca-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function Historial({ events, carregant, onEsborra }) {
+  const [periode, setPeriode] = useState("7dies");
+  const [visibles, setVisibles] = useState(VISIBLES_INICIALS);
 
   if (carregant) return <p style={s.center}>Carregant…</p>;
   if (events.length === 0) return <p style={s.center}>Encara no hi ha events.</p>;
 
+  const filtrats = filtraPerPeriode(events, periode);
+  const { perCategoria, total } = agregaPerCategoria(filtrats);
+  const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+
+  const mostrats = filtrats.slice(0, visibles);
+
   return (
     <section>
-      <div style={s.resum}>
-        <Targeta etiqueta="Fet" valor={perCategoria["Fet"]} color="#1a7f37" />
-        <Targeta etiqueta="No fet" valor={perCategoria["No fet"]} color="#cf222e" />
-        <Targeta etiqueta="Total" valor={total} color="#0969da" />
-      </div>
-
       <div style={s.selector}>
-        <span>Agrupa per:</span>
-        {["dia", "setmana", "mes"].map((g) => (
+        {PERIODES.map((p) => (
           <button
-            key={g}
-            style={agrupacio === g ? s.tabOn : s.tab}
-            onClick={() => setAgrupacio(g)}
+            key={p.clau}
+            style={periode === p.clau ? s.tabOn : s.tab}
+            onClick={() => {
+              setPeriode(p.clau);
+              setVisibles(VISIBLES_INICIALS);
+            }}
           >
-            {g}
+            {p.etiqueta}
           </button>
         ))}
       </div>
 
-      <table style={s.taula}>
-        <thead>
-          <tr>
-            <th style={s.th}>Període</th>
-            <th style={s.th}>Fet</th>
-            <th style={s.th}>No fet</th>
-            <th style={s.th}>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {grups.map((g) => (
-            <tr key={g.periode}>
-              <td style={s.td}>{g.periode}</td>
-              <td style={s.td}>{g.Fet}</td>
-              <td style={s.td}>{g["No fet"]}</td>
-              <td style={s.td}>{g.total}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={s.resum}>
+        <Targeta etiqueta="Fet" valor={perCategoria["Fet"]} pct={pct(perCategoria["Fet"])} color="#1a7f37" />
+        <Targeta etiqueta="No fet" valor={perCategoria["No fet"]} pct={pct(perCategoria["No fet"])} color="#cf222e" />
+        <Targeta etiqueta="Total" valor={total} color="#0969da" />
+      </div>
+
+      {filtrats.length === 0 ? (
+        <p style={s.center}>Cap registre en aquest període.</p>
+      ) : (
+        <>
+          <table style={s.taula}>
+            <thead>
+              <tr>
+                <th style={s.th}>Data</th>
+                <th style={s.th}>Estat</th>
+                <th style={s.th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {mostrats.map((e) => {
+                const ferFet = e.value === "Fet";
+                return (
+                  <tr key={e.id}>
+                    <td style={s.td}>{formataData(e.date)}</td>
+                    <td style={{ ...s.td, ...(ferFet ? s.celFet : s.celNoFet) }}>
+                      {e.value}
+                    </td>
+                    <td style={{ ...s.td, textAlign: "right" }}>
+                      <button
+                        style={s.esborrar}
+                        title="Eliminar registre"
+                        onClick={() => onEsborra(e.id)}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {visibles < filtrats.length && (
+            <div style={s.center}>
+              <button
+                style={s.veureMes}
+                onClick={() => setVisibles((v) => v + VISIBLES_INICIALS)}
+              >
+                Veure més registres
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
 
-function Targeta({ etiqueta, valor, color }) {
+function Targeta({ etiqueta, valor, pct, color }) {
   return (
     <div style={s.targeta}>
       <div style={{ ...s.num, color }}>{valor}</div>
       <div style={s.etq}>{etiqueta}</div>
+      {pct !== undefined && <div style={s.pct}>{pct}%</div>}
     </div>
   );
 }
@@ -160,8 +215,13 @@ const s = {
   targeta: { flex: 1, textAlign: "center", border: "1px solid #eee", borderRadius: 12, padding: 16 },
   num: { fontSize: 32, fontWeight: "bold" },
   etq: { fontSize: 14, color: "#666" },
-  selector: { display: "flex", gap: 8, alignItems: "center", marginBottom: 16 },
+  pct: { fontSize: 13, color: "#999", marginTop: 2 },
+  selector: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 },
   taula: { width: "100%", borderCollapse: "collapse" },
   th: { textAlign: "left", borderBottom: "2px solid #ddd", padding: 8 },
   td: { borderBottom: "1px solid #eee", padding: 8 },
+  celFet: { background: "#d8f5dd", color: "#1a7f37", fontWeight: 600 },
+  celNoFet: { background: "#ffdcdc", color: "#cf222e", fontWeight: 600 },
+  esborrar: { border: "none", background: "transparent", color: "#cf222e", fontSize: 16, cursor: "pointer", lineHeight: 1 },
+  veureMes: { marginTop: 16, padding: "8px 16px", border: "1px solid #0969da", background: "#fff", color: "#0969da", borderRadius: 8, cursor: "pointer" },
 };

@@ -2,6 +2,8 @@
 import {
   collection,
   addDoc,
+  deleteDoc,
+  doc,
   getDocs,
   query,
   orderBy,
@@ -24,4 +26,9 @@ export async function llegirEvents(db) {
   const q = query(collection(db, COL), orderBy("date", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Esborra un event pel seu id.
+export async function esborraEvent(db, id) {
+  return deleteDoc(doc(db, COL, id));
 }
