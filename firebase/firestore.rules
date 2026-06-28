@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Per defecte: tot bloquejat. Obre només el que necessitis.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Exemple: cada usuari només pot llegir/escriure el seu propi document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Exemple: exercicis públics de lectura, escriptura només autenticat
+    match /exercicis/{exerciciId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
