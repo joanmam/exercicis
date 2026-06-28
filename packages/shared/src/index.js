@@ -1,2 +1,3 @@
 export * from "./firebase.js";
-export * from "./exercicis.js";
+export * from "./events.js";
+export * from "./db.js";

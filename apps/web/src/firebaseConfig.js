@@ -1,13 +1,5 @@
-// Llegeix la config de les variables d'entorn de Vite (apps/web/.env)
 import { initFirebase } from "@exercicis/shared/firebase";
+import { firebaseConfig } from "@exercicis/shared/config";
 
-const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-export const { app, auth, db, storage } = initFirebase(config);
+export const isConfigured = true;
+export const { app, auth, db, storage } = initFirebase(firebaseConfig);

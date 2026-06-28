@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.js",
     "./firebase": "./src/firebase.js",
-    "./exercicis": "./src/exercicis.js"
+    "./config": "./src/firebaseConfig.js",
+    "./events": "./src/events.js",
+    "./db": "./src/db.js"
   },
   "peerDependencies": {
     "firebase": "^11.0.0"
