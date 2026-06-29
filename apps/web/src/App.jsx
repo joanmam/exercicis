@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { db, isConfigured } from "./firebaseConfig";
 import { afegirEvent, llegirEvents, esborraEvent } from "@exercicis/shared/db";
-import { agregaPerCategoria, filtraPerPeriode, filtraPerGrup, PERIODES, GRUPS } from "@exercicis/shared/events";
+import { agregaPerCategoria, filtraPerPeriode, filtraPerGrup, percentatgeMensual, etiquetaMes, PERIODES, GRUPS } from "@exercicis/shared/events";
 
 // Colors de fons i accent per a cada grup.
 const TEMA = {
@@ -171,6 +171,8 @@ function Historial({ events, carregant, onEsborra, accent = "#0969da" }) {
         <Targeta etiqueta="Total" valor={total} color={accent} />
       </div>
 
+      <GraficaPercentatge dades={percentatgeMensual(events)} accent={accent} />
+
       {filtrats.length === 0 ? (
         <p style={s.center}>Cap registre en aquest període.</p>
       ) : (
@@ -223,6 +225,40 @@ function Historial({ events, carregant, onEsborra, accent = "#0969da" }) {
   );
 }
 
+function GraficaPercentatge({ dades, accent }) {
+  if (dades.length === 0) return null;
+
+  const W = 320, H = 180, ml = 26, mr = 12, mt = 14, mb = 26;
+  const iw = W - ml - mr, ih = H - mt - mb;
+  const n = dades.length;
+  const fx = (i) => ml + (n === 1 ? iw / 2 : (iw * i) / (n - 1));
+  const fy = (pct) => mt + ih * (1 - pct / 100);
+  const punts = dades.map((d, i) => ({ ...d, cx: fx(i), cy: fy(d.pct) }));
+  const linia = punts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.cx} ${p.cy}`).join(" ");
+
+  return (
+    <div style={s.grafica}>
+      <div style={s.graficaTitol}>% de "Fet" per mes</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {[0, 25, 50, 75, 100].map((v) => (
+          <g key={v}>
+            <line x1={ml} y1={fy(v)} x2={W - mr} y2={fy(v)} stroke="#eee" strokeWidth="1" />
+            <text x={ml - 4} y={fy(v) + 3} textAnchor="end" fontSize="8" fill="#999">{v}</text>
+          </g>
+        ))}
+        {n > 1 && <path d={linia} fill="none" stroke={accent} strokeWidth="1.5" opacity="0.35" />}
+        {punts.map((p) => (
+          <g key={p.mes}>
+            <circle cx={p.cx} cy={p.cy} r="4" fill={accent} />
+            <text x={p.cx} y={p.cy - 8} textAnchor="middle" fontSize="8" fill="#444">{p.pct}%</text>
+            <text x={p.cx} y={H - 8} textAnchor="middle" fontSize="8" fill="#666">{etiquetaMes(p.mes)}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function Targeta({ etiqueta, valor, pct, color }) {
   return (
     <div style={s.targeta}>
@@ -253,6 +289,8 @@ const s = {
   num: { fontSize: 32, fontWeight: "bold" },
   etq: { fontSize: 14, color: "#666" },
   pct: { fontSize: 13, color: "#999", marginTop: 2 },
+  grafica: { border: "1px solid #eee", borderRadius: 12, padding: 12, margin: "0 0 24px", background: "#fff" },
+  graficaTitol: { fontSize: 14, color: "#666", marginBottom: 4, textAlign: "center" },
   selector: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 },
   taula: { width: "100%", borderCollapse: "collapse" },
   th: { textAlign: "left", borderBottom: "2px solid #ddd", padding: 8 },

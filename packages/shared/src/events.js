@@ -93,6 +93,29 @@ export function clauPeriode(date, groupBy) {
   return `${y}-${m}-${dia}`;
 }
 
+const MESOS_CURT = ["gen", "feb", "mar", "abr", "mai", "jun", "jul", "ago", "set", "oct", "nov", "des"];
+
+// Etiqueta curta d'un mes "YYYY-MM" -> "gen 26".
+export function etiquetaMes(mesClau) {
+  const [y, m] = mesClau.split("-");
+  return `${MESOS_CURT[Number(m) - 1]} ${y.slice(2)}`;
+}
+
+// Per cada mes, percentatge de "Fet" sobre el total del mes.
+// Retorna [{ mes: "YYYY-MM", fet, total, pct }] ordenat de més antic a més nou.
+export function percentatgeMensual(events) {
+  const grups = {};
+  for (const e of events) {
+    const clau = clauPeriode(e.date, "mes");
+    if (!grups[clau]) grups[clau] = { mes: clau, fet: 0, total: 0 };
+    if (e.value === "Fet") grups[clau].fet += 1;
+    grups[clau].total += 1;
+  }
+  return Object.values(grups)
+    .map((g) => ({ ...g, pct: g.total ? Math.round((g.fet / g.total) * 100) : 0 }))
+    .sort((a, b) => (a.mes < b.mes ? -1 : 1));
+}
+
 // Agrupa els events per període i compta Fet / No fet / total a cada grup.
 export function agrupaPerTemps(events, groupBy = "dia") {
   const grups = {};
